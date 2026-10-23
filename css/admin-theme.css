@@ -1,0 +1,304 @@
+:root {
+    --primary: #b1a7d5;
+    --primary-hover: #9b8ec4;
+    --bg-base: #fdfbfd;
+    --border-color: #e5dfec;
+    --slot-hover: #f3eff9;
+    --booked-bg: #eddff4;
+    --booked-border: #b1a7d5;
+    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-stack);
+    background-color: var(--bg-base);
+    color: #333;
+    padding: 15px;
+}
+
+/* Header di navigazione rapida */
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 15px;
+}
+
+.top-bar h1 {
+    font-size: 20px;
+    color: #4a4063;
+}
+
+.top-bar .actions a, .btn-primary {
+    display: inline-block;
+    background: var(--primary);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.top-bar .actions a:hover, .btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+/* Barra selettore schede per schermi piccoli */
+.mobile-tabs {
+    display: none;
+    gap: 8px;
+    margin-bottom: 15px;
+    overflow-x: auto;
+}
+
+.mobile-tabs button {
+    flex: 1;
+    min-width: 80px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.mobile-tabs button.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+/* Griglia Agenda */
+.agenda-grid {
+    display: grid;
+    grid-template-columns: 80px repeat(4, 1fr);
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.grid-header {
+    background: #f7f4fa;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: bold;
+    border-bottom: 2px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+}
+
+.grid-header:last-child {
+    border-right: none;
+}
+
+.time-col {
+    border-right: 1px solid var(--border-color);
+    background: #faf8fc;
+}
+
+.time-slot-label {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cabin-col {
+    position: relative;
+    border-right: 1px solid var(--border-color);
+}
+
+.cabin-col:last-child {
+    border-right: none;
+}
+
+.slot-cell {
+    height: 60px;
+    border-bottom: 1px dashed var(--border-color);
+    cursor: pointer;
+    transition: background 0.15s;
+    padding: 4px;
+}
+
+.slot-cell:hover {
+    background: var(--slot-hover);
+}
+
+/* Card Appuntamento registrato */
+.appointment-card {
+    background: var(--booked-bg);
+    border-left: 4px solid var(--booked-border);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    height: 100%;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.appointment-card .client-name {
+    font-weight: bold;
+    color: #382c49;
+}
+
+.appointment-card .service-name {
+    color: #5d5073;
+    font-size: 11px;
+}
+
+/* Modal Popup Inserimento */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(2px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-box {
+    background: #fff;
+    width: 90%;
+    max-width: 450px;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+/* Responsive Mobile (Soluzione 1 a schede) */
+@media (max-width: 768px) {
+    .mobile-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+        overflow-x: auto;
+    }
+
+    .mobile-tabs button {
+        flex: 1;
+        padding: 8px 4px;
+        border: 1px solid var(--border-color);
+        background: #fff;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .mobile-tabs button.active {
+        background: var(--primary-color, #726289);
+        color: #fff;
+        border-color: var(--primary-color, #726289);
+    }
+
+    /* Griglia a 2 colonne esatte su mobile: orario + 1 cabina */
+    .agenda-grid {
+        display: grid;
+        grid-template-columns: 65px 1fr !important;
+        width: 100%;
+    }
+
+    /* Nascondi tutte le intestazioni cabina tranne quella attiva */
+    .grid-header {
+        display: none !important;
+    }
+    .grid-header:first-child {
+        display: block !important; /* Etichetta "Orario" */
+    }
+    .grid-header.active-header {
+        display: block !important; /* Nome della cabina attiva */
+    }
+
+    /* Nascondi tutte le colonne cabina tranne quella attiva */
+    .cabin-col {
+        display: none !important;
+    }
+    .cabin-col.active-cabin {
+        display: block !important;
+    }
+}
+
+/* Responsive per Anagrafica Clienti */
+@media (max-width: 768px) {
+    /* Nasconde l'intestazione standard della tabella */
+    .client-table thead {
+        display: none;
+    }
+
+    /* Trasforma ogni riga in una card ben spaziata */
+    .client-table, 
+    .client-table tbody, 
+    .client-table tr.client-row {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .client-table tr.client-row {
+        background: #fff;
+        margin-bottom: 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        padding: 12px 14px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+    }
+
+    /* Le celle si dispongono verticalmente senza overflow */
+    .client-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #f6f3f8;
+        font-size: 13px;
+    }
+
+    /* Evidenzia il nome del cliente in cima alla card */
+    .client-table td.col-nome {
+        font-size: 16px;
+        border-bottom: 2px solid var(--border-color);
+        padding-bottom: 8px;
+        margin-bottom: 6px;
+    }
+
+    /* Etichette automatiche su mobile per capire i campi */
+    .client-table td.col-tel::before { content: "Telefono:"; color: #726289; font-weight: 600; }
+    .client-table td:nth-child(3)::before { content: "Registrato:"; color: #726289; font-weight: 600; }
+    .client-table td:nth-child(4)::before { content: "Visite totali:"; color: #726289; font-weight: 600; }
+    .client-table td:nth-child(5)::before { content: "Note:"; color: #726289; font-weight: 600; }
+
+    /* Riga azioni in fondo alla card a larghezza piena */
+    .client-table td:last-child {
+        border-bottom: none;
+        padding-top: 10px;
+        margin-top: 6px;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .client-table td:last-child button {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+}
