@@ -5,7 +5,9 @@ requireAdminLogin(); // Protezione sessione e verifica timeout inattivita
 $msgSuccess = '';$msgError = '';
 
 // Gestione Azioni CRUD Clienti
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verificaCsrf()) {
+    $msgError = 'Richiesta non valida. Ricarica la pagina e riprova.';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $azione =$_POST['azione'] ?? '';
 
     if ($azione === 'salva') {$id = !empty($_POST['id_cliente']) ? (int)$_POST['id_cliente'] : null;
@@ -21,9 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt =$pdo->prepare("UPDATE `clienti` SET `nome` = :n, `cognome` = :c, `telefono` = :t, `note` = :not WHERE `id` = :id");
                     $stmt->execute([':n' =>$nome, ':c' => $cognome, ':t' =>$telefono, ':not' => $note, ':id' => $id]);$msgSuccess = 'Cliente aggiornato con successo.';
                 } else {
-                    $stmt =$pdo->prepare("INSERT INTO `clienti` (`nome`, `cognome`, `telefono`, `note`) VALUES (:n, :c, :t, :not)");
-                    $stmt->execute([':n' =>$nome, ':c' => $cognome, ':t' =>$telefono, ':not' => $note]);
-                    $msgSuccess = 'Nuovo cliente inserito con successo.';
+                    $stmtDup = $pdo->prepare("SELECT COUNT(*) FROM `clienti` WHERE `nome` = :n AND `cognome` = :c");
+                    $stmtDup->execute([':n' => $nome, ':c' => $cognome]);
+                    $giaPresente = (int)$stmtDup->fetchColumn() > 0;
+
+                    $stmt = $pdo->prepare("INSERT INTO `clienti` (`nome`, `cognome`, `telefono`, `note`) VALUES (:n, :c, :t, :not)");
+                    $stmt->execute([':n' => $nome, ':c' => $cognome, ':t' => $telefono, ':not' => $note]);
+                    $msgSuccess = 'Nuovo cliente inserito con successo.'
+                        . ($giaPresente ? ' Attenzione: esisteva già un cliente con lo stesso nome e cognome.' : '');
                 }
             } catch (PDOException $e) {$msgError = 'Errore durante il salvataggio dei dati.';
             }
@@ -163,8 +170,12 @@ $clienti = $pdo->query($query)->fetchAll();
                     <td style="color: #666; font-size: 13px;"><?= htmlspecialchars($c['note'] ?? '-') ?></td>
                     <td style="text-align: right; white-space: nowrap;">
                         <button type="button" class="btn-action-edit" onclick='apriModificaCliente(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>)'>✏️ Modifica</button>
-                        <form method="POST" action="clienti.php" style="display: inline-block;" onsubmit="return confirm('Eliminare definitivamente questo cliente e tutti i suoi appuntamenti?');">
+                        <form method="POST" action="clienti.php" style="display: inline-block;"
+                                data-nome="<?= htmlspecialchars(trim($c['cognome'] . ' ' . $c['nome'])) ?>"
+                                data-visite="<?= (int)$c['totale_visite'] ?>"
+                                onsubmit="return confermaEliminazione(this);">
                             <input type="hidden" name="azione" value="elimina">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                             <input type="hidden" name="id_cliente" value="<?= $c['id'] ?>">
                             <button type="submit" class="btn-action-del">🗑️ Elimina</button>
                         </form>
@@ -180,6 +191,7 @@ $clienti = $pdo->query($query)->fetchAll();
             <h2 id="modalClienteTitle" style="font-size: 18px; margin-top: 0; margin-bottom: 16px; color: #4a4063;">Nuovo Cliente</h2>
             <form method="POST" action="clienti.php">
                 <input type="hidden" name="azione" value="salva">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
                 <input type="hidden" name="id_cliente" id="modalIdCliente" value="">
 
                 <div style="margin-bottom: 12px;">
@@ -242,6 +254,17 @@ $clienti = $pdo->query($query)->fetchAll();
 
         function chiudiModalCliente() {
             modalCliente.style.display = 'none';
+        }
+
+        function confermaEliminazione(form) {
+        const nome = form.dataset.nome;
+        const appuntamenti = form.dataset.visite;
+        const risposta = prompt(
+                'Stai per eliminare DEFINITIVAMENTE ' + nome + ' e i suoi ' + appuntamenti + ' appuntamenti registrati.\n' +
+                'Questa operazione non si può annullare.\n\n' +
+                'Per confermare scrivi ELIMINA:'
+            );
+            return risposta !== null && risposta.trim().toUpperCase() === 'ELIMINA';
         }
 
         // Filtro rapido istantaneo ottimizzato per grandi elenchi

@@ -1,6 +1,8 @@
 <?php
 header('Content-Type: application/json');
 require_once '../config.php';
+requireAdminApi();
+requireCsrfApi();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -54,21 +56,38 @@ try {
 
     // Gestione Cliente
     if (empty($idCliente)) {
-        if (empty($nomeCliente) && empty($cognomeCliente)) {
-            echo json_encode(['success' => false, 'message' => 'Cliente non valido.']);
+
+        if ($nomeCliente === '' || $cognomeCliente === '') {
+            echo json_encode(['success' => false, 'message' => 'Per un nuovo cliente servono sia cognome che nome.']);
             exit;
         }
-        $stmtCheckCli = $pdo->prepare("SELECT id FROM clienti WHERE (nome = :nome AND cognome = :cognome) OR telefono = :tel LIMIT 1");
-        $stmtCheckCli->execute([':nome' => $nomeCliente, ':cognome' => $cognomeCliente, ':tel' => $telCliente]);
-        $clienteEsistente = $stmtCheckCli->fetch();
+
+        // Maiuscole uniformi: "rossi" / "ROSSI" -> "Rossi"
+        $nomeCliente    = mb_convert_case($nomeCliente, MB_CASE_TITLE, 'UTF-8');
+        $cognomeCliente = mb_convert_case($cognomeCliente, MB_CASE_TITLE, 'UTF-8');
+        
+        // Per i nomi uguali decide l'utente (l'agenda mostra l'avviso e permette di sceglierlo dall'elenco).
+        $clienteEsistente = false;
+        if ($telCliente !== '') {
+            $stmtCheckCli = $pdo->prepare("SELECT id FROM clienti WHERE telefono = :tel LIMIT 1");
+            $stmtCheckCli->execute([':tel' => $telCliente]);
+            $clienteEsistente = $stmtCheckCli->fetch();
+        }
         
         if ($clienteEsistente) {
             $idCliente = (int)$clienteEsistente['id'];
         } else {
             $stmtCli = $pdo->prepare("INSERT INTO clienti (nome, cognome, telefono) VALUES (:nome, :cognome, :tel)");
-            $stmtCli->execute([':nome' => $nomeCliente, ':cognome' => $cognomeCliente, ':tel' => $telCliente]);
+            $stmtCli->execute([':nome' => $nomeCliente, ':cognome' => $cognomeCliente, ':tel' => $telCliente !== '' ? $telCliente : null]);
+
             $idCliente = (int)$pdo->lastInsertId();
         }
+    }
+
+        // Aggiorna il telefono in anagrafica se il cliente esiste ed è stato indicato un numero
+    if (!empty($idCliente) && $telCliente !== '') {
+        $stmtTel = $pdo->prepare("UPDATE clienti SET telefono = :tel WHERE id = :id");
+        $stmtTel->execute([':tel' => $telCliente, ':id' => $idCliente]);
     }
 
     // Salvataggio
@@ -82,5 +101,6 @@ try {
 
     echo json_encode(['success' => true]);
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Errore DB: ' . $e->getMessage()]);
+    error_log('salva_appuntamento: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Errore durante il salvataggio. Riprova.']);
 }

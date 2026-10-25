@@ -1,6 +1,8 @@
 <?php
 header('Content-Type: application/json');
 require_once '../config.php';
+requireAdminApi();
+requireCsrfApi();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -22,5 +24,6 @@ try {
 
     echo json_encode(['success' => true, 'message' => 'Appuntamento annullato con successo']);
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Errore database: ' . $e->getMessage()]);
+    error_log('cancella_appuntamento: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Errore durante l\'annullamento. Riprova.']);
 }

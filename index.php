@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once 'config.php';
 
 // Se l'utente ha già una sessione attiva valida, rimanda direttamente all'agenda
@@ -20,7 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $utente =$stmt->fetch();
 
             if ($utente && password_verify($password,$utente['password_hash'])) {
-                // Credenziali corrette: inizializzazione parametri di sessione
+                // Credenziali corrette: nuovo ID di sessione (protegge dal furto di sessione) e parametri
+                session_regenerate_id(true);
                 $_SESSION['admin_logged']   = true;
                 $_SESSION['admin_id']       = $utente['id'];$_SESSION['admin_user']     = $utente['username'];$_SESSION['ultimo_accesso'] = time(); // Avvio timer di inattività
 
