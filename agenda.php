@@ -71,7 +71,7 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
 
     .time-slot-label,
     .slot-cell {
-        height: 48px;
+        height: 52px;
         box-sizing: border-box;
     }
 
@@ -384,7 +384,7 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
                                 $minutiInizio = strtotime($app['ora_inizio']);
                                 $minutiFine = strtotime($app['ora_fine']);
                                 $durataMinuti = max(15, ($minutiFine - $minutiInizio) / 60);
-                                $altezzaPx = ($durataMinuti / 15) * 48;
+                                $altezzaPx = ($durataMinuti / 15) * 52;
                                 ?>
                 <div class="appointment-card" style="height: <?= $altezzaPx ?>px;"
                     onclick="event.stopPropagation(); openEditForm(this.parentElement, <?= htmlspecialchars(json_encode($app), ENT_QUOTES, 'UTF-8') ?>)">
