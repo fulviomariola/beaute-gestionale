@@ -611,14 +611,11 @@ function checkDuplicati() {
     }
 
     function updateOraFine() {
-        // Se l'utente ha impostato manualmente l'ora di fine, non la sovrascriviamo
         if (manualEndTimeSet) return;
 
-        const selectTratt = document.getElementById('inline-trattamento');
-        const durata = selectTratt.options[selectTratt.selectedIndex].dataset.durata;
         const oraInizio = document.getElementById('inline-ora-inizio').value;
-        if (!durata || !oraInizio) return;
-        const oraFine = computeEnd(oraInizio, parseInt(durata));
+        if (!oraInizio) return;
+        const oraFine = computeEnd(oraInizio, 30);
         const selectFine = document.getElementById('inline-ora-fine');
         for (let i = 0; i < selectFine.options.length; i++) {
             if (selectFine.options[i].value === oraFine) {
