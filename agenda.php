@@ -539,8 +539,8 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
         </div>
         <div class="actions" style="display: flex; gap: 10px; align-items: center;">
             <a href="clienti.php">👥 Clienti</a>
-            <a href="logout.php"
-                style="background: #a499a8; padding: 5px 10px; border-radius: 4px; color: white; text-decoration: none;">Esci</a>
+            <!-- <a href="logout.php"
+                style="background: #a499a8; padding: 5px 10px; border-radius: 4px; color: white; text-decoration: none;">Esci</a> -->
         </div>
     </header>
     <div class="mobile-tabs">
