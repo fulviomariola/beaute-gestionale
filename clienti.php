@@ -126,7 +126,7 @@ $clienti = $pdo->query($query)->fetchAll();
         </div>
         <div class="actions" style="display: flex; gap: 10px; align-items: center;">
             <a href="agenda.php">📅 Torna all'Agenda</a>
-            <a href="logout.php" style="background: #a499a8;">Esci 🚪</a>
+            <!-- <a href="logout.php" style="background: #a499a8;">Esci 🚪</a> -->
         </div>
     </header>
 

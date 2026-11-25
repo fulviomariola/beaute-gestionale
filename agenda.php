@@ -4,11 +4,17 @@ requireAdminLogin();
 $dataSelezionata = $_GET['data'] ?? date('Y-m-d');
 $stmtCabine = $pdo->query("SELECT * FROM `cabine` WHERE `attiva` = 1 ORDER BY `numero` ASC");
 $cabine = $stmtCabine->fetchAll();
-$stmtTrattamenti = $pdo->query("SELECT * FROM `trattamenti` WHERE `attivo` = 1 ORDER BY `nome` ASC");
+
+// Estraiamo i trattamenti ordinati per categoria e id
+$stmtTrattamenti = $pdo->query("SELECT * FROM `trattamenti` WHERE `attivo` = 1 ORDER BY `categoria` ASC, `id` ASC");
 $trattamenti = $stmtTrattamenti->fetchAll();
 
+// Ricaviamo l'elenco univoco delle categorie disponibili
+$categorieTrattamenti = array_values(array_unique(array_column($trattamenti, 'categoria')));
+
 $stmtApp = $pdo->prepare("
-    SELECT a.*, c.nome AS cliente_nome, c.cognome AS cliente_cognome, c.telefono AS cliente_tel, t.nome AS trattamento_nome, t.durata_minuti_default
+    SELECT a.*, c.nome AS cliente_nome, c.cognome AS cliente_cognome, c.telefono AS cliente_tel, 
+           t.nome AS trattamento_nome, t.categoria AS trattamento_categoria, t.prezzo AS trattamento_prezzo, t.durata_minuti_default
     FROM `appuntamenti` a
     JOIN `clienti` c ON a.id_cliente = c.id
     LEFT JOIN `trattamenti` t ON a.id_trattamento = t.id
@@ -43,6 +49,87 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
     <title>Agenda - La Beauté</title>
     <link rel="stylesheet" href="css/admin-theme.css">
     <style>
+    .top-bar-controls {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-top: 6px;
+    }
+
+    .agenda-search-box {
+        position: relative;
+        width: 290px;
+        max-width: 100%;
+    }
+
+    .agenda-search-input {
+        width: 100%;
+        padding: 6px 10px;
+        border: 1px solid var(--border-color, #d5cde0);
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: inherit;
+        background: #fff;
+        box-sizing: border-box;
+    }
+
+    .agenda-search-input:focus {
+        outline: none;
+        border-color: #726289;
+        box-shadow: 0 0 0 2px rgba(114, 98, 137, 0.15);
+    }
+
+    .agenda-search-results {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        width: 380px;
+        max-width: 90vw;
+        max-height: 320px;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid #726289;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+        z-index: 250;
+    }
+
+    .agenda-search-item {
+        padding: 9px 12px;
+        border-bottom: 1px solid #f0ecf5;
+        cursor: pointer;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #2d2638;
+    }
+
+    .agenda-search-item:last-child {
+        border-bottom: none;
+    }
+
+    .agenda-search-item:hover {
+        background: #f5f0fa;
+    }
+
+    .agenda-search-date {
+        font-weight: 700;
+        color: #4a4063;
+    }
+
+    .agenda-search-sub {
+        color: #5c536b;
+        font-size: 11px;
+        margin-top: 2px;
+    }
+
+    .agenda-search-empty {
+        padding: 10px 12px;
+        font-size: 12px;
+        color: #666;
+    }
+
     .agenda-grid {
         display: grid;
         grid-template-columns: 60px repeat(<?=count($cabine) ?>, 1fr);
@@ -149,6 +236,18 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 4px;
+    }
+
+    .appointment-card .service-name span:first-child {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .appointment-card .service-price {
+        color: #2e7d32;
+        font-weight: 700;
     }
 
     .appointment-card .service-time {
@@ -160,6 +259,7 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
     .edit-icon {
         font-size: 12px;
         opacity: 0.7;
+        flex-shrink: 0;
     }
 
     .slot-cell.inline-active {
@@ -198,13 +298,24 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
         box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
     }
 
-    .inline-time-row {
+    .inline-time-row,
+    .inline-service-row {
         display: flex;
         gap: 6px;
     }
 
     .inline-time-row>* {
         flex: 1;
+    }
+
+    .inline-service-row .cat-col {
+        flex: 0 0 42%;
+        min-width: 0;
+    }
+
+    .inline-service-row .srv-col {
+        flex: 1;
+        min-width: 0;
     }
 
     .inline-time-label {
@@ -322,6 +433,10 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
     }
 
     @media (max-width: 768px) {
+        .agenda-search-box {
+            width: 100%;
+        }
+
         .agenda-grid {
             grid-template-columns: 50px 1fr;
         }
@@ -334,7 +449,74 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
         .mobile-tabs {
             display: flex;
         }
+
+        .inline-service-row {
+            flex-direction: column;
+        }
+
+        .inline-service-row .cat-col,
+        .inline-service-row .srv-col {
+            flex: 1 1 100%;
+        }
     }
+
+    .agenda-search-item.is-past {
+    background: #fcf9fa;
+    opacity: 0.78;
+}
+
+.agenda-search-item.is-past:hover {
+    background: #f7eef1;
+    opacity: 1;
+}
+
+.agenda-search-past-text {
+    color: #b71c1c;
+    font-weight: 700;
+}
+
+.agenda-badge-past {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #b71c1c;
+    background: #fdecea;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.agenda-badge-upcoming {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #2e7d32;
+    background: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.agenda-search-group-title {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background: #f4f1f8;
+    color: #4a4063;
+    border-bottom: 1px solid #e6e0ee;
+}
+
+.agenda-search-group-title.is-past-group {
+    background: #fdf4f5;
+    color: #b71c1c;
+    border-top: 1px solid #f0d8dc;
+}
     </style>
 </head>
 
@@ -342,10 +524,18 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
     <header class="top-bar">
         <div>
             <h1>La Beauté — Agenda</h1>
-            <form method="GET" style="display: inline-block; margin-top: 5px;">
-                <input type="date" name="data" value="<?= htmlspecialchars($dataSelezionata) ?>"
-                    onchange="this.form.submit()">
-            </form>
+            <div class="top-bar-controls">
+                <form method="GET" style="display: inline-block; margin: 0;">
+                    <input type="date" name="data" value="<?= htmlspecialchars($dataSelezionata) ?>"
+                        onchange="this.form.submit()">
+                </form>
+
+                <div class="agenda-search-box" onclick="event.stopPropagation()">
+                    <input type="search" id="agenda-search-input" class="agenda-search-input"
+                        placeholder="🔍 Cerca appuntamento (nome, cognome, tel)..." autocomplete="off">
+                    <div id="agenda-search-results" class="agenda-search-results"></div>
+                </div>
+            </div>
         </div>
         <div class="actions" style="display: flex; gap: 10px; align-items: center;">
             <a href="clienti.php">👥 Clienti</a>
@@ -394,7 +584,12 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
                             class="client-tel"><?= htmlspecialchars($app['cliente_tel']) ?></strong><?php endif; ?>
                     </div>
                     <div class="service-name">
-                        <span><?= htmlspecialchars($app['trattamento_nome'] ?? 'Tratt.') ?></span>
+                        <span>
+                            <?= htmlspecialchars($app['trattamento_nome'] ?? 'Tratt.') ?>
+                            <?php if (!empty($app['trattamento_prezzo'])): ?>
+                                <strong class="service-price">(<?= htmlspecialchars($app['trattamento_prezzo']) ?>)</strong>
+                            <?php endif; ?>
+                        </span>
                         <span class="edit-icon">✏️</span>
                     </div>
                     <div class="service-time"><?= substr($app['ora_inizio'], 0, 5) ?> -
@@ -410,69 +605,192 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
     </div>
     <script>
     const trattamentiData = <?= json_encode($trattamenti) ?>;
+    const categorieData = <?= json_encode($categorieTrattamenti) ?>;
     const fasceOrarie = <?= json_encode($fasceOrarie) ?>;
     const fasceFine = <?= json_encode($fasceFine) ?>;
     const dataAppuntamento = "<?= $dataSelezionata ?>";
     const csrfToken = "<?= csrfToken() ?>";
 
     let activeFormCell = null;
-    let manualEndTimeSet = false; // Flag per tracciare se l'utente ha modificato manualmente l'ora di fine
+    let manualEndTimeSet = false;
     let dupTimer = null;
-    let dupSeq = 0; // contatore per ignorare risposte arrivate in ritardo
+    let dupSeq = 0;
+    let searchAppTimer = null;
+    let searchAppSeq = 0;
 
-function checkDuplicati() {
-    const warn = document.getElementById('inline-dup-warning');
-    if (!warn) return;
+    function escHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[ch]));
+    }
 
-    const hide = () => { warn.style.display = 'none'; };
-
-    // Cliente già scelto dall'elenco: nessun avviso
-    if (document.getElementById('inline-id-cliente').value) { hide(); return; }
-
-    const cognome = document.getElementById('inline-cliente-search').value.trim();
-    const nome    = document.getElementById('inline-nome').value.trim();
-    const tel     = document.getElementById('inline-telefono').value.trim();
-
-    const queries = [];
-    if (cognome.length >= 2) queries.push(cognome);
-    if (tel.length >= 3)     queries.push(tel);
-    if (!queries.length) { hide(); return; }
-
-    const mySeq = ++dupSeq;
-    clearTimeout(dupTimer);
-
-    // Confronto senza distinguere maiuscole e accenti
-    const uguali = (a, b) => (a || '').trim().localeCompare((b || '').trim(), 'it', { sensitivity: 'base' }) === 0;
-    const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-
-    dupTimer = setTimeout(() => {
-        Promise.all(queries.map(q =>
-            fetch(`api/cerca_cliente.php?q=${encodeURIComponent(q)}`)
-                .then(r => r.ok ? r.json() : [])
-        )).then(results => {
-            if (mySeq !== dupSeq) return;
-            const trovati = results.flat().filter(c => c && c.id);
-
-            // 1) stesso cognome E stesso nome
-            const stessoNome = nome !== '' ? trovati.find(c => uguali(c.cognome, cognome) && uguali(c.nome, nome)) : null;
-            // 2) stesso telefono
-            const stessoTel = tel.length >= 3 ? trovati.find(c => c.telefono && c.telefono.replace(/\s/g, '') === tel.replace(/\s/g, '')) : null;
-
-            if (stessoNome) {
-                warn.innerHTML = `⚠️ <strong>Attenzione:</strong> esiste già un cliente chiamato <strong>${esc(stessoNome.cognome)} ${esc(stessoNome.nome)}</strong>${stessoNome.telefono ? ' (tel. ' + esc(stessoNome.telefono) + ')' : ''}. Se è la stessa persona, cliccala nell'elenco; se è un omonimo, puoi salvare normalmente.`;
-                warn.style.display = 'block';
-            } else if (stessoTel) {
-                warn.innerHTML = `⚠️ <strong>Attenzione:</strong> questo telefono è già registrato per <strong>${esc(stessoTel.cognome)} ${esc(stessoTel.nome)}</strong>. Se è la stessa persona, cliccala nell'elenco.`;
-                warn.style.display = 'block';
-            } else {
-                hide();
-            }
-        }).catch(() => {
-            if (mySeq !== dupSeq) return;
-            hide();
+    function formattaDataIt(isoDate) {
+        if (!isoDate) return '';
+        const [y, m, d] = isoDate.split('-').map(Number);
+        const dt = new Date(y, (m || 1) - 1, d || 1);
+        return dt.toLocaleDateString('it-IT', {
+            weekday: 'short',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
         });
-    }, 300);
-}
+    }
+
+    function isAppuntamentoPassato(dataIso, oraFine) {
+        if (!dataIso) return false;
+        const oraStr = (oraFine && oraFine.length >= 5) ? oraFine.substring(0, 5) : '23:59';
+        const dataOraApp = new Date(`${dataIso}T${oraStr}:00`);
+        return dataOraApp < new Date();
+    }
+
+    function renderSearchAppointmentItem(app, passato) {
+        const cliente = `${app.cliente_cognome || ''} ${app.cliente_nome || ''}`.trim();
+        const dataFmt = formattaDataIt(app.data_appuntamento);
+        const oraIni = (app.ora_inizio || '').substring(0, 5);
+        const oraFin = (app.ora_fine || '').substring(0, 5);
+        const tratt = app.trattamento_nome || 'Trattamento non specificato';
+        const prezzo = app.trattamento_prezzo ? ` (${app.trattamento_prezzo})` : '';
+
+        const classeRiga = passato ? 'agenda-search-item is-past' : 'agenda-search-item';
+        const classeData = passato ? 'agenda-search-date agenda-search-past-text' : 'agenda-search-date';
+        const badge = passato
+            ? '<span class="agenda-badge-past">Passato</span>'
+            : '<span class="agenda-badge-upcoming">Prossimo</span>';
+
+        return `
+            <div class="${classeRiga}" onclick="vaiAdAppuntamento('${escHtml(app.data_appuntamento)}')">
+                <div>
+                    <span class="${classeData}">${escHtml(dataFmt)}</span>
+                    • <strong>${escHtml(oraIni)}–${escHtml(oraFin)}</strong>
+                    • ${escHtml(app.cabina_nome || '')}
+                    ${badge}
+                </div>
+                <div class="agenda-search-sub">
+                    <strong>${escHtml(cliente)}</strong>${app.cliente_tel ? ' • ' + escHtml(app.cliente_tel) : ''} — ${escHtml(tratt)}${escHtml(prezzo)}
+                </div>
+            </div>
+        `;
+    }
+
+    function setupAppointmentSearch() {
+        const input = document.getElementById('agenda-search-input');
+        const box = document.getElementById('agenda-search-results');
+        if (!input || !box) return;
+
+        input.addEventListener('input', function() {
+            const q = this.value.trim();
+            clearTimeout(searchAppTimer);
+
+            if (q.length < 2) {
+                box.style.display = 'none';
+                box.innerHTML = '';
+                return;
+            }
+
+            const mySeq = ++searchAppSeq;
+            searchAppTimer = setTimeout(() => {
+                fetch(`api/cerca_appuntamenti.php?q=${encodeURIComponent(q)}`)
+                    .then(r => r.ok ? r.json() : [])
+                    .then(rows => {
+                        if (mySeq !== searchAppSeq) return;
+
+                        if (!Array.isArray(rows) || rows.length === 0) {
+                            box.innerHTML = '<div class="agenda-search-empty">Nessun appuntamento trovato.</div>';
+                            box.style.display = 'block';
+                            return;
+                        }
+
+                        const prossimi = [];
+                        const passati = [];
+
+                        rows.forEach(app => {
+                            if (isAppuntamentoPassato(app.data_appuntamento, app.ora_fine)) {
+                                passati.push(app);
+                            } else {
+                                prossimi.push(app);
+                            }
+                        });
+
+                        let html = '';
+
+                        if (prossimi.length > 0) {
+                            html += `<div class="agenda-search-group-title">Prossimi appuntamenti (${prossimi.length})</div>`;
+                            html += prossimi.map(app => renderSearchAppointmentItem(app, false)).join('');
+                        }
+
+                        if (passati.length > 0) {
+                            html += `<div class="agenda-search-group-title is-past-group">Appuntamenti passati (${passati.length})</div>`;
+                            html += passati.map(app => renderSearchAppointmentItem(app, true)).join('');
+                        }
+
+                        box.innerHTML = html;
+                        box.style.display = 'block';
+                    })
+                    .catch(() => {
+                        if (mySeq !== searchAppSeq) return;
+                        box.style.display = 'none';
+                    });
+            }, 250);
+        });
+    }
+
+    function vaiAdAppuntamento(dataIso) {
+        if (!dataIso) return;
+        window.location.href = `agenda.php?data=${encodeURIComponent(dataIso)}`;
+    }
+
+    function checkDuplicati() {
+        const warn = document.getElementById('inline-dup-warning');
+        if (!warn) return;
+
+        const hide = () => { warn.style.display = 'none'; };
+
+        if (document.getElementById('inline-id-cliente').value) { hide(); return; }
+
+        const cognome = document.getElementById('inline-cliente-search').value.trim();
+        const nome    = document.getElementById('inline-nome').value.trim();
+        const tel     = document.getElementById('inline-telefono').value.trim();
+
+        const queries = [];
+        if (cognome.length >= 2) queries.push(cognome);
+        if (tel.length >= 3)     queries.push(tel);
+        if (!queries.length) { hide(); return; }
+
+        const mySeq = ++dupSeq;
+        clearTimeout(dupTimer);
+
+        const uguali = (a, b) => (a || '').trim().localeCompare((b || '').trim(), 'it', { sensitivity: 'base' }) === 0;
+
+        dupTimer = setTimeout(() => {
+            Promise.all(queries.map(q =>
+                fetch(`api/cerca_cliente.php?q=${encodeURIComponent(q)}`)
+                    .then(r => r.ok ? r.json() : [])
+            )).then(results => {
+                if (mySeq !== dupSeq) return;
+                const trovati = results.flat().filter(c => c && c.id);
+
+                const stessoNome = nome !== '' ? trovati.find(c => uguali(c.cognome, cognome) && uguali(c.nome, nome)) : null;
+                const stessoTel = tel.length >= 3 ? trovati.find(c => c.telefono && c.telefono.replace(/\s/g, '') === tel.replace(/\s/g, '')) : null;
+
+                if (stessoNome) {
+                    warn.innerHTML = `⚠️ <strong>Attenzione:</strong> esiste già un cliente chiamato <strong>${escHtml(stessoNome.cognome)} ${escHtml(stessoNome.nome)}</strong>${stessoNome.telefono ? ' (tel. ' + escHtml(stessoNome.telefono) + ')' : ''}. Se è la stessa persona, cliccala nell'elenco; se è un omonimo, puoi salvare normalmente.`;
+                    warn.style.display = 'block';
+                } else if (stessoTel) {
+                    warn.innerHTML = `⚠️ <strong>Attenzione:</strong> questo telefono è già registrato per <strong>${escHtml(stessoTel.cognome)} ${escHtml(stessoTel.nome)}</strong>. Se è la stessa persona, cliccala nell'elenco.`;
+                    warn.style.display = 'block';
+                } else {
+                    hide();
+                }
+            }).catch(() => {
+                if (mySeq !== dupSeq) return;
+                hide();
+            });
+        }, 300);
+    }
 
     function computeEnd(start, minuti) {
         let [h, m] = start.split(':').map(Number);
@@ -504,19 +822,55 @@ function checkDuplicati() {
         cell.dataset.originalHtml = cell.innerHTML;
         activeFormCell = cell;
         cell.classList.add('inline-active');
-        manualEndTimeSet = true; // In modifica, consideriamo l'ora di fine come "manuale"
+        manualEndTimeSet = true;
         renderInlineForm(cell, cell.dataset.cabina, appData.ora_inizio.substring(0, 5), appData.ora_fine.substring(0,
             5), true, appData);
     }
 
+    function populateTrattamentiByCategoria(selectedCategoria, selectedTrattamentoId = '') {
+        const selectTratt = document.getElementById('inline-trattamento');
+        if (!selectTratt) return;
+
+        if (!selectedCategoria) {
+            selectTratt.innerHTML = '<option value="">-- Prima categoria --</option>';
+            selectTratt.disabled = true;
+            return;
+        }
+
+        selectTratt.disabled = false;
+        let opzioni = '<option value="">-- Seleziona --</option>';
+        trattamentiData
+            .filter(t => t.categoria === selectedCategoria)
+            .forEach(t => {
+                const selected = (selectedTrattamentoId && String(t.id) === String(selectedTrattamentoId)) ? 'selected' : '';
+                const labelPrezzo = t.prezzo ? ` (${t.prezzo})` : '';
+                opzioni += `<option value="${t.id}" data-durata="${t.durata_minuti_default}" ${selected}>${escHtml(t.nome)}${escHtml(labelPrezzo)}</option>`;
+            });
+        selectTratt.innerHTML = opzioni;
+    }
+
+    function handleCategoriaChange() {
+        const cat = document.getElementById('inline-categoria').value;
+        populateTrattamentiByCategoria(cat);
+    }
+
     function renderInlineForm(cell, cabinaId, oraInizio, oraFine, isEdit, appData) {
         appData = appData || {};
-        let opzioniTrattamenti = '<option value="">-- Seleziona --</option>';
-        trattamentiData.forEach(t => {
-            const selected = (isEdit && appData.id_trattamento == t.id) ? 'selected' : '';
-            opzioniTrattamenti +=
-                `<option value="${t.id}" data-durata="${t.durata_minuti_default}" ${selected}>${t.nome}</option>`;
+
+        let categoriaCorrente = '';
+        if (isEdit && appData.id_trattamento) {
+            const trattTrovato = trattamentiData.find(t => String(t.id) === String(appData.id_trattamento));
+            if (trattTrovato) {
+                categoriaCorrente = trattTrovato.categoria;
+            }
+        }
+
+        let opzioniCategorie = '<option value="">-- Categoria --</option>';
+        categorieData.forEach(cat => {
+            const selected = (cat === categoriaCorrente) ? 'selected' : '';
+            opzioniCategorie += `<option value="${escHtml(cat)}" ${selected}>${escHtml(cat)}</option>`;
         });
+
         let selectStart = '<select class="inline-select" id="inline-ora-inizio" onchange="handleStartTimeChange()">';
         fasceOrarie.forEach(f => {
             selectStart += `<option value="${f}" ${f === oraInizio ? 'selected' : ''}>${f}</option>`;
@@ -548,26 +902,35 @@ function checkDuplicati() {
                 </div>
                 <div style="position: relative;">
                 <div class="inline-time-label">👤 Cognome</div>
-                <input type="text" class="inline-input" id="inline-cliente-search" placeholder="Cerca o scrivi nuovo..." value="${clienteVal}" autocomplete="off">
+                <input type="text" class="inline-input" id="inline-cliente-search" placeholder="Cerca o scrivi nuovo..." value="${escHtml(clienteVal)}" autocomplete="off">
                 <div class="inline-suggestions" id="inline-suggestions"></div>
                 </div>
                 <div>
                 <div class="inline-time-label">👤 Nome</div>
-                <input type="text" class="inline-input" id="inline-nome" placeholder="Nome" value="${nomeVal}" autocomplete="off">
+                <input type="text" class="inline-input" id="inline-nome" placeholder="Nome" value="${escHtml(nomeVal)}" autocomplete="off">
                 </div>                
                 <div>
                 <div class="inline-time-label">📞 Telefono</div>
-                <input type="text" class="inline-input" id="inline-telefono" placeholder="Es. 3331234567" value="${telVal}">
+                <input type="text" class="inline-input" id="inline-telefono" placeholder="Es. 3331234567" value="${escHtml(telVal)}">
                 </div>
                 <div>
                 <div class="inline-time-label">💆 Trattamento</div>
-                <select class="inline-select" id="inline-trattamento" onchange="updateOraFine()">
-                ${opzioniTrattamenti}
-                </select>
+                <div class="inline-service-row">
+                    <div class="cat-col">
+                        <select class="inline-select" id="inline-categoria" onchange="handleCategoriaChange()">
+                            ${opzioniCategorie}
+                        </select>
+                    </div>
+                    <div class="srv-col">
+                        <select class="inline-select" id="inline-trattamento" onchange="updateOraFine()" disabled>
+                            <option value="">-- Prima categoria --</option>
+                        </select>
+                    </div>
+                </div>
                 </div>
                 <div>
                 <div class="inline-time-label">📝 Note</div>
-                <input type="text" class="inline-input" id="inline-note" placeholder="Opzionale..." value="${noteVal}">
+                <input type="text" class="inline-input" id="inline-note" placeholder="Opzionale..." value="${escHtml(noteVal)}">
                 </div>
                 <div>
                 <div id="inline-dup-warning" style="display:none; background:#fff3cd; color:#856404; border:1px solid #ffeeba; border-radius:4px; padding:6px 8px; font-size:11px; line-height:1.4;"></div>
@@ -580,6 +943,11 @@ function checkDuplicati() {
                 </div>
                 </div>
                 `;
+
+        if (categoriaCorrente) {
+            populateTrattamentiByCategoria(categoriaCorrente, appData.id_trattamento);
+        }
+
         setTimeout(() => {
             document.getElementById('inline-cliente-search').focus();
             setupAutocomplete();
@@ -600,13 +968,11 @@ function checkDuplicati() {
     }
 
     function handleStartTimeChange() {
-        // Se l'utente cambia l'ora di inizio, resettiamo il flag
         manualEndTimeSet = false;
         updateOraFine();
     }
 
     function handleEndTimeChange() {
-        // L'utente ha modificato manualmente l'ora di fine
         manualEndTimeSet = true;
     }
 
@@ -632,7 +998,6 @@ function checkDuplicati() {
         const newInput = input.cloneNode(true);
         input.parentNode.replaceChild(newInput, input);
         
-        // Chiude l'elenco dei suggerimenti quando esci dal campo (il ritardo permette di cliccare un suggerimento)
         newInput.addEventListener('blur', () => setTimeout(() => { suggestionsBox.style.display = 'none'; }, 250));
 
         newInput.addEventListener('input', function() {
@@ -641,7 +1006,6 @@ function checkDuplicati() {
 
             checkDuplicati(); 
 
-            // Parsing intelligente: cerca un numero di telefono alla fine del testo
             const match = query.match(/^(.*?)\s+([0-9+\s\-()]{6,})$/);
             if (match) {
                 this.value = match[1].trim();
@@ -657,7 +1021,7 @@ function checkDuplicati() {
                             const item = document.createElement('div');
                             item.className = 'inline-suggestion-item';
                             item.innerHTML =
-                                `<strong>${c.cognome} ${c.nome}</strong> <span style="color:#888;">${c.telefono || ''}</span>`;
+                                `<strong>${escHtml(c.cognome)} ${escHtml(c.nome)}</strong> <span style="color:#888;">${escHtml(c.telefono || '')}</span>`;
                             item.onclick = () => {
                                 idClienteHidden.value = c.id;
                                 newInput.value = c.cognome;
@@ -717,7 +1081,7 @@ function checkDuplicati() {
         formData.append('ora_fine', oraFine);
         formData.append('id_trattamento', idTrattamento);
         formData.append('note_trattamento', note);
-        formData.append('nuovo_telefono', telefono); // Sempre inviato, anche per clienti esistenti
+        formData.append('nuovo_telefono', telefono);
         
         if (!idCliente) {
             formData.append('nuovo_cognome', cognome);
@@ -766,13 +1130,24 @@ function checkDuplicati() {
             h.classList.toggle('active-header', h.dataset.cabinId == cabinId));
     }
 
+    document.addEventListener('DOMContentLoaded', setupAppointmentSearch);
+
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && activeFormCell) closeInlineForm(activeFormCell);
+        if (e.key === 'Escape') {
+            if (activeFormCell) closeInlineForm(activeFormCell);
+            const box = document.getElementById('agenda-search-results');
+            if (box) box.style.display = 'none';
+        }
     });
 
     document.addEventListener('click', function(e) {
         if (activeFormCell && !activeFormCell.contains(e.target)) {
             closeInlineForm(activeFormCell);
+        }
+        const searchBox = document.querySelector('.agenda-search-box');
+        const searchResults = document.getElementById('agenda-search-results');
+        if (searchResults && searchBox && !searchBox.contains(e.target)) {
+            searchResults.style.display = 'none';
         }
     });
     </script>
