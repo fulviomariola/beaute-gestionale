@@ -517,6 +517,24 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
     color: #b71c1c;
     border-top: 1px solid #f0d8dc;
 }
+
+.time-slot-label.hour-start {
+    font-weight: 700;
+    color: #4a4063;
+    background: #f3eff8;
+}
+
+.slot-cell {
+    position: relative;
+    border-bottom: 1px solid #ece8f2;
+    cursor: pointer;
+    transition: background 0.15s;
+    overflow: visible;
+}
+
+.slot-cell.hour-end-slot {
+    border-bottom: 3px solid #6b5b88;
+}
     </style>
 </head>
 
@@ -559,14 +577,20 @@ $fasceFine = array_merge($fasceOrarie, ['20:15']);
         <?php endforeach; ?>
         <div class="time-col">
             <?php foreach ($fasceOrarie as $ora): ?>
-            <div class="time-slot-label <?= in_array(substr($ora, -2), ['15', '45']) ? 'quarter' : '' ?>"><?= $ora ?>
-            </div>
+            <?php
+                $minutiStr = substr($ora, -2);
+                $isQuarter = in_array($minutiStr, ['15', '45']);
+                $isHourStart = ($minutiStr === '00');
+            ?>
+            <div class="time-slot-label <?= $isQuarter ? 'quarter' : '' ?> <?= $isHourStart ? 'hour-start' : '' ?>"><?= $ora ?></div>
             <?php endforeach; ?>
         </div>
+
         <?php foreach ($cabine as $idx => $cab): ?>
         <div class="cabin-col <?= $idx === 0 ? 'active-cabin' : '' ?>" data-cabin-id="<?= $cab['id'] ?>">
             <?php foreach ($fasceOrarie as $ora): ?>
-            <div class="slot-cell hour-border" data-cabina="<?= $cab['id'] ?>" data-ora="<?= $ora ?>"
+            <?php $isHourEnd = (substr($ora, -2) === '45'); ?>
+            <div class="slot-cell <?= $isHourEnd ? 'hour-end-slot' : '' ?>" data-cabina="<?= $cab['id'] ?>" data-ora="<?= $ora ?>"
                 onclick="openNewForm(this)">
                 <?php if (!empty($agendaMap[$cab['id']][$ora])): ?>
                 <?php foreach ($agendaMap[$cab['id']][$ora] as $app): ?>
